@@ -1,0 +1,23 @@
+# Secrets
+.configuration
+
+# Telegram session
+*.session
+*.session-journal
+
+# Data / database
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# OS
+.DS_Store
