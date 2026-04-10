@@ -44,7 +44,8 @@ class EvaluationEngine:
         self._meta_map = meta_map
         self._store = store
         self._openai: Optional[AsyncOpenAI] = (
-            AsyncOpenAI(api_key=config.OPENAI_API_KEY) if config.OPENAI_API_KEY else None
+            AsyncOpenAI(api_key=config.OPENROUTER_API_KEY, base_url=config.OPENROUTER_BASE_URL)
+            if config.OPENROUTER_API_KEY else None
         )
 
     async def run(self) -> None:
@@ -162,7 +163,7 @@ class EvaluationEngine:
                     "gain_pct": signal.gain_percentage,
                 })
                 resp = await self._openai.chat.completions.create(
-                    model=config.OPENAI_MODEL,
+                    model=config.OPENROUTER_MODEL,
                     max_tokens=150,
                     temperature=0,
                     response_format={"type": "json_object"},

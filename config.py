@@ -42,11 +42,12 @@ class Config:
     TELEGRAM_SESSION_NAME: str = _get("TELEGRAM_SESSION_NAME", "meta_session")
     TELEGRAM_CHANNELS: list[str] = _get_list("TELEGRAM_CHANNELS")
 
-    # OpenAI
-    OPENAI_API_KEY: str = _get("OPENAI_API_KEY")
-    OPENAI_MODEL: str = _get("OPENAI_MODEL", "gpt-4o-mini")
-    OPENAI_MAX_TOKENS: int = _get_int("OPENAI_MAX_TOKENS", 512)
-    OPENAI_TEMPERATURE: float = _get_float("OPENAI_TEMPERATURE", 0.2)
+    # OpenRouter (OpenAI-compatible)
+    OPENROUTER_API_KEY: str = _get("OPENROUTER_API_KEY")
+    OPENROUTER_MODEL: str = _get("OPENROUTER_MODEL", "openai/gpt-4o-mini")
+    OPENROUTER_MAX_TOKENS: int = _get_int("OPENROUTER_MAX_TOKENS", 512)
+    OPENROUTER_TEMPERATURE: float = _get_float("OPENROUTER_TEMPERATURE", 0.2)
+    OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
 
     # News / Trends
     NEWS_API_KEY: str = _get("NEWS_API_KEY")
@@ -84,8 +85,8 @@ class Config:
             missing.append("TELEGRAM_API_ID")
         if not cls.TELEGRAM_API_HASH:
             missing.append("TELEGRAM_API_HASH")
-        if not cls.OPENAI_API_KEY:
-            missing.append("OPENAI_API_KEY")
+        if not cls.OPENROUTER_API_KEY:
+            missing.append("OPENROUTER_API_KEY")
         return missing
 
 

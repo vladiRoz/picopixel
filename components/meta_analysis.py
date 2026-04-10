@@ -46,7 +46,8 @@ class MetaAnalysisEngine:
         self._analysis_q = analysis_queue
         self._store = store
         self._openai: Optional[AsyncOpenAI] = (
-            AsyncOpenAI(api_key=config.OPENAI_API_KEY) if config.OPENAI_API_KEY else None
+            AsyncOpenAI(api_key=config.OPENROUTER_API_KEY, base_url=config.OPENROUTER_BASE_URL)
+            if config.OPENROUTER_API_KEY else None
         )
 
     async def run(self) -> None:
@@ -72,9 +73,9 @@ class MetaAnalysisEngine:
         user_content = self._build_prompt(signal)
         try:
             resp = await self._openai.chat.completions.create(
-                model=config.OPENAI_MODEL,
-                max_tokens=config.OPENAI_MAX_TOKENS,
-                temperature=config.OPENAI_TEMPERATURE,
+                model=config.OPENROUTER_MODEL,
+                max_tokens=config.OPENROUTER_MAX_TOKENS,
+                temperature=config.OPENROUTER_TEMPERATURE,
                 response_format={"type": "json_object"},
                 messages=[
                     {"role": "system", "content": _SYSTEM_PROMPT},

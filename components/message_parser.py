@@ -276,7 +276,7 @@ Respond ONLY with valid JSON: {"symbol": "SYMBOL_OR_NULL", "coin_name": "Name or
 async def _llm_extract_symbol(text: str, client: AsyncOpenAI) -> tuple[str, str]:
     try:
         resp = await client.chat.completions.create(
-            model=config.OPENAI_MODEL,
+            model=config.OPENROUTER_MODEL,
             max_tokens=64,
             temperature=0,
             response_format={"type": "json_object"},
@@ -308,7 +308,10 @@ class MessageParser:
         self._raw_q = raw_queue
         self._parsed_q = parsed_queue
         self._store = store
-        self._openai = AsyncOpenAI(api_key=config.OPENAI_API_KEY) if config.OPENAI_API_KEY else None
+        self._openai = (
+            AsyncOpenAI(api_key=config.OPENROUTER_API_KEY, base_url=config.OPENROUTER_BASE_URL)
+            if config.OPENROUTER_API_KEY else None
+        )
 
     async def run(self) -> None:
         log.info("MessageParser started")
