@@ -7,10 +7,14 @@ Runs as an independent background task.
 """
 import asyncio
 import re
+import ssl
 from typing import Optional
 
 import aiohttp
+import certifi
 import feedparser
+
+_ssl_context = ssl.create_default_context(cafile=certifi.where())
 
 from config import config
 from storage.store import Store
@@ -83,7 +87,8 @@ class TrendCollector:
 
     async def _parse_rss(self, url: str) -> list[dict]:
         async with aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=15)
+            timeout=aiohttp.ClientTimeout(total=15),
+            connector=aiohttp.TCPConnector(ssl=_ssl_context),
         ) as session:
             async with session.get(url) as resp:
                 content = await resp.read()
