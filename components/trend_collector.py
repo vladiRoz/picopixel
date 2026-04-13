@@ -6,6 +6,7 @@ Stores combined results in the database.
 Adding a new trend source requires no changes here — just register it in main.py.
 """
 import asyncio
+from datetime import datetime, timedelta
 
 from components.trend_sources.base import TrendSource
 from config import config
@@ -14,11 +15,14 @@ from utils.logger import get_logger
 
 log = get_logger(__name__)
 
+_CLEANUP_INTERVAL = timedelta(days=30)
+
 
 class TrendCollector:
     def __init__(self, sources: list[TrendSource], store: Store) -> None:
         self._sources = sources
         self._store = store
+        self._last_cleanup: datetime = datetime.utcnow()
 
     async def run(self) -> None:
         log.info(
@@ -30,11 +34,18 @@ class TrendCollector:
         while True:
             try:
                 await self._collect()
+                self._maybe_cleanup()
             except asyncio.CancelledError:
                 break
             except Exception as exc:
                 log.error("TrendCollector error: %s", exc, exc_info=True)
             await asyncio.sleep(config.NEWS_REFRESH_INTERVAL)
+
+    def _maybe_cleanup(self) -> None:
+        if datetime.utcnow() - self._last_cleanup >= _CLEANUP_INTERVAL:
+            deleted = self._store.cleanup_old_trends()
+            self._last_cleanup = datetime.utcnow()
+            log.info("TrendCollector: monthly cleanup removed %d old trend rows", deleted)
 
     async def _collect(self) -> None:
         trends: list[dict] = []

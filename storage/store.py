@@ -6,7 +6,7 @@ but SQLite on mobile is fast enough for our write volume).
 import json
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -272,8 +272,9 @@ class Store:
     # ------------------------------------------------------------------
 
     def save_trends(self, trends: list[dict]) -> None:
+        """Append new trends — history is kept and cleaned up monthly."""
+        now = datetime.utcnow().isoformat()
         with self._conn() as conn:
-            conn.execute("DELETE FROM trends")
             conn.executemany(
                 "INSERT INTO trends (title, source, keywords, timestamp) VALUES (?,?,?,?)",
                 [
@@ -281,16 +282,26 @@ class Store:
                         t.get("title", ""),
                         t.get("source", ""),
                         json.dumps(t.get("keywords", [])),
-                        datetime.utcnow().isoformat(),
+                        now,
                     )
                     for t in trends
                 ],
             )
 
-    def get_trends(self) -> list[dict]:
+    def cleanup_old_trends(self) -> int:
+        """Delete trends older than 30 days. Returns number of rows deleted."""
+        cutoff = (datetime.utcnow() - timedelta(days=30)).isoformat()
+        with self._conn() as conn:
+            cur = conn.execute("DELETE FROM trends WHERE timestamp < ?", (cutoff,))
+            return cur.rowcount
+
+    def get_trends(self, hours: int = 24) -> list[dict]:
+        """Return trends from the last `hours` hours for scoring."""
+        cutoff = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
         with self._conn() as conn:
             rows = conn.execute(
-                "SELECT title, source, keywords FROM trends ORDER BY timestamp DESC LIMIT 100"
+                "SELECT title, source, keywords FROM trends WHERE timestamp >= ? ORDER BY timestamp DESC",
+                (cutoff,),
             ).fetchall()
         return [
             {
