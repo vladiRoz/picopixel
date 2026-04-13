@@ -91,14 +91,21 @@ class Store:
                 );
 
                 CREATE TABLE IF NOT EXISTS trends (
-                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                    title       TEXT NOT NULL,
-                    source      TEXT,
-                    keywords    TEXT,
-                    timestamp   TEXT NOT NULL
+                    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title              TEXT NOT NULL,
+                    source             TEXT,
+                    keywords           TEXT,
+                    timestamp          TEXT NOT NULL,
+                    original_timestamp TEXT
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_signals_symbol ON coin_signals(symbol);
+            """)
+            # Migration: add original_timestamp column if it doesn't exist yet
+            cols = [r[1] for r in conn.execute("PRAGMA table_info(trends)").fetchall()]
+            if "original_timestamp" not in cols:
+                conn.execute("ALTER TABLE trends ADD COLUMN original_timestamp TEXT")
+            conn.executescript("""
                 CREATE INDEX IF NOT EXISTS idx_signals_ts     ON coin_signals(timestamp);
                 CREATE INDEX IF NOT EXISTS idx_evals_symbol   ON evaluations(coin_symbol);
                 CREATE INDEX IF NOT EXISTS idx_evals_ts       ON evaluations(timestamp);
@@ -276,13 +283,14 @@ class Store:
         now = datetime.utcnow().isoformat()
         with self._conn() as conn:
             conn.executemany(
-                "INSERT INTO trends (title, source, keywords, timestamp) VALUES (?,?,?,?)",
+                "INSERT INTO trends (title, source, keywords, timestamp, original_timestamp) VALUES (?,?,?,?,?)",
                 [
                     (
                         t.get("title", ""),
                         t.get("source", ""),
                         json.dumps(t.get("keywords", [])),
                         now,
+                        t.get("original_timestamp"),
                     )
                     for t in trends
                 ],
@@ -333,6 +341,7 @@ class Store:
                 "source": r["source"],
                 "keywords": json.loads(r["keywords"] or "[]"),
                 "timestamp": r["timestamp"],
+                "original_timestamp": r["original_timestamp"],
             }
             for r in rows
         ]

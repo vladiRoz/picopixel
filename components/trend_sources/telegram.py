@@ -89,10 +89,13 @@ class TelegramTrendSource(TrendSource):
             text = getattr(msg, "message", "") or ""
             if not text.strip():
                 continue
+            # Use the original Telegram send time, not the collection time
+            msg_ts = getattr(msg, "date", None)
             results.append({
                 "title": text[:120].replace("\n", " "),
                 "source": f"telegram:{channel}",
                 "keywords": extract_keywords(text),
+                "original_timestamp": msg_ts.isoformat() if msg_ts else None,
             })
             if msg.id > max_id:
                 max_id = msg.id

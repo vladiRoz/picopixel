@@ -186,7 +186,14 @@ _TRENDS = _BASE.replace("{% block content %}{% endblock %}", """
 <tbody>
 {% for t in trends %}
 <tr>
-  <td style="white-space:nowrap;font-size:0.75rem;color:#4a5568">{{ t.timestamp[:19] }}</td>
+  <td style="white-space:nowrap;font-size:0.75rem;color:#4a5568">
+    {% if t.original_timestamp %}
+      {{ t.original_timestamp[:19] }}
+      <div style="color:#2d3748;font-size:0.7rem">collected {{ t.timestamp[:19] }}</div>
+    {% else %}
+      {{ t.timestamp[:19] }}
+    {% endif %}
+  </td>
   <td style="font-size:0.75rem;color:#a0aec0;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
       title="{{ t.source }}">
     {% if 'telegram:' in t.source %}
