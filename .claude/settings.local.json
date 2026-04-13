@@ -2,7 +2,14 @@
   "permissions": {
     "allow": [
       "Bash(git init:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git remote:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "Bash(git:*)",
+      "Bash(curl -s --max-time 10 \"https://feeds.reuters.com/reuters/businessNews\")",
+      "Bash(chmod +x /Users/personal/Desktop/meta/.venv/bin/activate /Users/personal/Desktop/meta/requirements.txt /Users/personal/Desktop/meta/start_web.py)"
     ]
   }
 }

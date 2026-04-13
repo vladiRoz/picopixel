@@ -50,6 +50,7 @@ class Config:
     OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
 
     # News / Trends
+    TREND_TELEGRAM_CHANNELS: list[str] = _get_list("TREND_TELEGRAM_CHANNELS")
     NEWS_API_KEY: str = _get("NEWS_API_KEY")
     NEWS_REFRESH_INTERVAL: int = _get_int("NEWS_REFRESH_INTERVAL_SECONDS", 3600)
     RSS_FEEDS: list[str] = _get_list(

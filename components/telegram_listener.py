@@ -30,12 +30,22 @@ class TelegramListener:
     """
     Listens to one or more Telegram channels and puts RawMessage objects onto
     the provided asyncio queue.
+
+    After connecting, sets client_ready and populates client_ref[0] so that
+    other components (e.g. TelegramTrendSource) can reuse the same connection.
     """
 
-    def __init__(self, queue: asyncio.Queue) -> None:
+    def __init__(
+        self,
+        queue: asyncio.Queue,
+        client_ready: asyncio.Event,
+        client_ref: list,
+    ) -> None:
         self._queue = queue
         self._client: Optional[TelegramClient] = None
         self._running = False
+        self._client_ready = client_ready
+        self._client_ref = client_ref
 
     async def start(self) -> None:
         if not config.TELEGRAM_API_ID or not config.TELEGRAM_API_HASH:
@@ -56,6 +66,8 @@ class TelegramListener:
         )
 
         await self._client.start(phone=config.TELEGRAM_PHONE or None)
+        self._client_ref[0] = self._client
+        self._client_ready.set()
         log.info("Telegram client connected")
 
         # Resolve channel entities once so Telethon can match them in events

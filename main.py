@@ -19,6 +19,7 @@ from components.telegram_listener import TelegramListener
 from components.message_parser import MessageParser
 from components.meta_analysis import MetaAnalysisEngine
 from components.trend_collector import TrendCollector
+from components.trend_sources import RSSSource, NewsAPISource, TelegramTrendSource
 from components.meta_mapping import MetaMap
 from components.meta_discovery import MetaDiscovery
 from components.adaptation_monitor import AdaptationMonitor
@@ -60,13 +61,23 @@ async def main() -> None:
     analysis_queue: asyncio.Queue = asyncio.Queue(maxsize=500)
     broadcast_queue: asyncio.Queue = asyncio.Queue(maxsize=500)
 
+    # Shared Telegram client handle (set by TelegramListener once connected)
+    telegram_client_ready: asyncio.Event = asyncio.Event()
+    telegram_client_ref: list = [None]
+
     # ------------------------------------------------------------------
     # Component instances
     # ------------------------------------------------------------------
-    listener = TelegramListener(raw_queue)
+    listener = TelegramListener(raw_queue, telegram_client_ready, telegram_client_ref)
     parser = MessageParser(raw_queue, parsed_queue, store)
     meta_engine = MetaAnalysisEngine(parsed_queue, analysis_queue, store)
-    trend_collector = TrendCollector(store)
+
+    trend_sources = [
+        RSSSource(config.RSS_FEEDS),
+        NewsAPISource(config.NEWS_API_KEY),
+        TelegramTrendSource(config.TREND_TELEGRAM_CHANNELS, telegram_client_ready, telegram_client_ref),
+    ]
+    trend_collector = TrendCollector(trend_sources, store)
     meta_discovery = MetaDiscovery(analysis_queue, meta_map, store, broadcast_queue)
     adaptation_monitor = AdaptationMonitor(meta_map, store, config.ADAPTATION_INTERVAL)
     evaluation_engine = EvaluationEngine(broadcast_queue, meta_map, store)
