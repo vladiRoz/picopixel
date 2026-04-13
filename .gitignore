@@ -19,5 +19,10 @@ env/
 dist/
 build/
 
+# IDE
+.idea/
+*.iml
+.vscode/
+
 # OS
 .DS_Store
