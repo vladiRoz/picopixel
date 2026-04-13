@@ -70,6 +70,7 @@ _BASE = """
   <a href="/">Dashboard</a>
   <a href="/evaluations">Evaluations</a>
   <a href="/metas">Metas</a>
+  <a href="/trends">Trends</a>
   <a href="/feedback">Feedback</a>
   <a href="/api/evaluations">API</a>
 </nav>
@@ -156,6 +157,58 @@ _METAS = _BASE.replace("{% block content %}{% endblock %}", """
 </div>
 """)
 
+_TRENDS = _BASE.replace("{% block content %}{% endblock %}", """
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+  <h2>Trend Sources</h2>
+  <span style="font-size:0.8rem;color:#4a5568">Last collected: {{ stats.last_collected }}</span>
+</div>
+
+<div class="grid" style="margin-bottom:20px">
+  <div class="stat"><div class="stat-val">{{ stats.total }}</div><div class="stat-lbl">Total Trend Items</div></div>
+  <div class="stat"><div class="stat-val">{{ stats.source_count }}</div><div class="stat-lbl">Active Sources</div></div>
+  <div class="stat"><div class="stat-val">{{ trends|length }}</div><div class="stat-lbl">Showing (last 200)</div></div>
+</div>
+
+<div style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap">
+  <a href="/trends" style="padding:4px 12px;border-radius:4px;font-size:0.8rem;
+     background:{% if not active_source %}#3182ce{% else %}#2d3748{% endif %};color:white">All</a>
+  {% for src in sources %}
+  <a href="/trends?source={{ src|urlencode }}"
+     style="padding:4px 12px;border-radius:4px;font-size:0.8rem;
+     background:{% if active_source == src %}#3182ce{% else %}#2d3748{% endif %};color:white">
+    {{ src.replace('https://','').replace('http://','')[:40] }}
+  </a>
+  {% endfor %}
+</div>
+
+<table>
+<thead><tr><th>Time</th><th>Source</th><th>Title</th><th>Keywords</th></tr></thead>
+<tbody>
+{% for t in trends %}
+<tr>
+  <td style="white-space:nowrap;font-size:0.75rem;color:#4a5568">{{ t.timestamp[:19] }}</td>
+  <td style="font-size:0.75rem;color:#a0aec0;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+      title="{{ t.source }}">
+    {% if 'telegram:' in t.source %}
+      📱 {{ t.source.replace('telegram:','') }}
+    {% elif 'newsapi' in t.source %}
+      📰 {{ t.source }}
+    {% else %}
+      🔗 {{ t.source.replace('https://','').replace('http://','')[:35] }}
+    {% endif %}
+  </td>
+  <td style="font-size:0.85rem">{{ t.title[:100] }}{% if t.title|length > 100 %}…{% endif %}</td>
+  <td>{% for kw in t.keywords[:6] %}<span class="meta-pill">{{ kw }}</span>{% endfor %}</td>
+</tr>
+{% else %}
+<tr><td colspan="4" style="color:#4a5568;text-align:center;padding:24px">
+  No trends collected yet. Waiting for first trend refresh cycle...
+</td></tr>
+{% endfor %}
+</tbody>
+</table>
+""")
+
 _FEEDBACK = _BASE.replace("{% block content %}{% endblock %}", """
 <h2>Submit Feedback</h2>
 <div class="card" style="max-width:500px">
@@ -230,6 +283,19 @@ def create_app(store: Store, meta_map: MetaMap, meta_discovery: MetaDiscovery) -
     async def metas_page():
         metas = [m.to_dict() for m in meta_map.get_all()]
         return _render(_METAS, metas=metas)
+
+    @app.get("/trends", response_class=HTMLResponse)
+    async def trends_page(request: Request, source: str = ""):
+        trends = store.get_trends_for_display(limit=200, source_filter=source)
+        sources = store.get_trend_sources()
+        stats = store.get_trend_stats()
+        return _render(
+            _TRENDS,
+            trends=trends,
+            sources=sources,
+            stats=stats,
+            active_source=source,
+        )
 
     @app.get("/feedback", response_class=HTMLResponse)
     async def feedback_page():

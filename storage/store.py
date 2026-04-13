@@ -311,3 +311,52 @@ class Store:
             }
             for r in rows
         ]
+
+    def get_trends_for_display(self, limit: int = 200, source_filter: str = "") -> list[dict]:
+        """Return trends with timestamps for the web admin, optionally filtered by source."""
+        with self._conn() as conn:
+            if source_filter:
+                rows = conn.execute(
+                    "SELECT title, source, keywords, timestamp FROM trends "
+                    "WHERE source LIKE ? ORDER BY timestamp DESC LIMIT ?",
+                    (f"%{source_filter}%", limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT title, source, keywords, timestamp FROM trends "
+                    "ORDER BY timestamp DESC LIMIT ?",
+                    (limit,),
+                ).fetchall()
+        return [
+            {
+                "title": r["title"],
+                "source": r["source"],
+                "keywords": json.loads(r["keywords"] or "[]"),
+                "timestamp": r["timestamp"],
+            }
+            for r in rows
+        ]
+
+    def get_trend_sources(self) -> list[str]:
+        """Return distinct source values for filter UI."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT source FROM trends ORDER BY source"
+            ).fetchall()
+        return [r["source"] for r in rows]
+
+    def get_trend_stats(self) -> dict:
+        """Return summary stats for the trends dashboard."""
+        with self._conn() as conn:
+            total = conn.execute("SELECT COUNT(*) as c FROM trends").fetchone()["c"]
+            last_row = conn.execute(
+                "SELECT timestamp FROM trends ORDER BY timestamp DESC LIMIT 1"
+            ).fetchone()
+            source_count = conn.execute(
+                "SELECT COUNT(DISTINCT source) as c FROM trends"
+            ).fetchone()["c"]
+        return {
+            "total": total,
+            "last_collected": last_row["timestamp"][:19] if last_row else "Never",
+            "source_count": source_count,
+        }
