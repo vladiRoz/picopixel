@@ -325,13 +325,13 @@ class Store:
         with self._conn() as conn:
             if source_filter:
                 rows = conn.execute(
-                    "SELECT title, source, keywords, timestamp FROM trends "
+                    "SELECT title, source, keywords, timestamp, original_timestamp FROM trends "
                     "WHERE source LIKE ? ORDER BY timestamp DESC LIMIT ?",
                     (f"%{source_filter}%", limit),
                 ).fetchall()
             else:
                 rows = conn.execute(
-                    "SELECT title, source, keywords, timestamp FROM trends "
+                    "SELECT title, source, keywords, timestamp, original_timestamp FROM trends "
                     "ORDER BY timestamp DESC LIMIT ?",
                     (limit,),
                 ).fetchall()
