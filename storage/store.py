@@ -99,7 +99,23 @@ class Store:
                     original_timestamp TEXT
                 );
 
+                CREATE TABLE IF NOT EXISTS performance_outcomes (
+                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    coin_symbol     TEXT NOT NULL,
+                    coin_name       TEXT NOT NULL,
+                    gain_multiplier REAL NOT NULL,
+                    source_entry_mc REAL,
+                    current_mc      REAL,
+                    prediction      TEXT,
+                    overall_score   REAL,
+                    metas           TEXT,
+                    was_correct     INTEGER,
+                    meta_adjustment REAL,
+                    timestamp       TEXT NOT NULL
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_signals_symbol ON coin_signals(symbol);
+                CREATE INDEX IF NOT EXISTS idx_outcomes_symbol ON performance_outcomes(coin_symbol);
             """)
             # Migration: add original_timestamp column if it doesn't exist yet
             cols = [r[1] for r in conn.execute("PRAGMA table_info(trends)").fetchall()]
@@ -241,6 +257,74 @@ class Store:
                 (limit,),
             ).fetchall()
         return [json.loads(r["payload"]) for r in rows]
+
+    def get_latest_evaluation_for_symbol(self, symbol: str) -> Optional[dict]:
+        """Return the most recent evaluation for a coin symbol, or None."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT payload FROM evaluations WHERE coin_symbol=? ORDER BY timestamp DESC LIMIT 1",
+                (symbol.upper(),),
+            ).fetchone()
+        return json.loads(row["payload"]) if row else None
+
+    # ------------------------------------------------------------------
+    # Performance outcomes
+    # ------------------------------------------------------------------
+
+    def save_performance_outcome(
+        self,
+        coin_symbol: str,
+        coin_name: str,
+        gain_multiplier: float,
+        source_entry_mc: Optional[float],
+        current_mc: Optional[float],
+        prediction: Optional[str],
+        overall_score: Optional[float],
+        metas: list[str],
+        was_correct: int,        # 1=correct, 0=neutral, -1=missed/wrong
+        meta_adjustment: float,
+    ) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                """INSERT INTO performance_outcomes
+                   (coin_symbol, coin_name, gain_multiplier, source_entry_mc, current_mc,
+                    prediction, overall_score, metas, was_correct, meta_adjustment, timestamp)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    coin_symbol.upper(),
+                    coin_name,
+                    gain_multiplier,
+                    source_entry_mc,
+                    current_mc,
+                    prediction,
+                    overall_score,
+                    json.dumps(metas),
+                    was_correct,
+                    meta_adjustment,
+                    datetime.utcnow().isoformat(),
+                ),
+            )
+
+    def get_recent_performance_outcomes(self, limit: int = 50) -> list[dict]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM performance_outcomes ORDER BY timestamp DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [
+            {
+                "coin_symbol": r["coin_symbol"],
+                "coin_name": r["coin_name"],
+                "gain_multiplier": r["gain_multiplier"],
+                "prediction": r["prediction"],
+                "overall_score": r["overall_score"],
+                "metas": json.loads(r["metas"] or "[]"),
+                "was_correct": r["was_correct"],
+                "meta_adjustment": r["meta_adjustment"],
+                "timestamp": r["timestamp"],
+            }
+            for r in rows
+        ]
 
     # ------------------------------------------------------------------
     # Feedback

@@ -264,6 +264,84 @@ def _parse_summary(text: str, channel: str, timestamp) -> Optional[CoinSignal]:
     )
 
 
+# Invisible unicode directional marks that appear in some Telegram messages
+_INVIS_RE = re.compile(r"[\u200e\u200f\u202a-\u202e\u2066-\u2069]")
+
+
+def _strip_invis(text: str) -> str:
+    return _INVIS_RE.sub("", text)
+
+
+def _parse_perf_result(text: str, channel: str, timestamp) -> Optional[CoinSignal]:
+    """
+    Matches: 📈 SYMBOL is up 30X 📈
+             from ⚡️ Entry Signal
+             $20K —> $612K 💵
+    """
+    clean = _strip_invis(text)
+    m = re.search(r"📈\s*(\w+)\s+is up\s+([\d.]+)X\s*📈", clean)
+    if not m:
+        return None
+
+    symbol = m.group(1).upper()
+    multiplier = float(m.group(2))
+
+    # MC range: $20K —> $612K  (various dash/arrow separators)
+    mc_m = re.search(r"\$([\d,.KkMmBb]+)\s*[—\-→>]+\s*\$([\d,.KkMmBb]+)", clean)
+    source_mc = _parse_usd(mc_m.group(1)) if mc_m else None
+    current_mc = _parse_usd(mc_m.group(2)) if mc_m else None
+
+    return CoinSignal(
+        coin_name=symbol,
+        symbol=symbol,
+        event_type=EventType.PERF_RESULT,
+        channel=channel,
+        raw_message=text,
+        timestamp=timestamp,
+        gain_multiplier=multiplier,
+        source_entry_mc=source_mc,
+        current_mc=current_mc,
+        market_cap=current_mc,
+    )
+
+
+def _parse_perf_summary(text: str, channel: str, timestamp) -> Optional[CoinSignal]:
+    """
+    Matches: 🏆 Top Early Trending 💸
+             🥇 Brent Crude | $BRENT • 512X [TG]
+             🥈 Official Layoff Coin | $LAYOFF • 40X [X]
+             🥉 Neurix Agent Labs | $NEURIX • 20X [TG]
+    """
+    clean = _strip_invis(text)
+    if "🏆" not in clean:
+        return None
+
+    entries = []
+    for m in re.finditer(
+        r"[🥇🥈🥉]\s*(.*?)\s*\|\s*\$(\w+)\s*•\s*([\d]+)X",
+        clean,
+    ):
+        name = m.group(1).strip()
+        symbol = m.group(2).upper()
+        gain_x = int(m.group(3))
+        entries.append({"name": name, "symbol": symbol, "gain_x": gain_x})
+
+    if not entries:
+        return None
+
+    first = entries[0]
+    return CoinSignal(
+        coin_name=first["name"],
+        symbol=first["symbol"],
+        event_type=EventType.PERF_SUMMARY,
+        channel=channel,
+        raw_message=text,
+        timestamp=timestamp,
+        gain_multiplier=float(first["gain_x"]),
+        summary_entries=entries,
+    )
+
+
 # ---------------------------------------------------------------------------
 # LLM fallback
 # ---------------------------------------------------------------------------
@@ -298,15 +376,20 @@ async def _llm_extract_symbol(text: str, client: AsyncOpenAI) -> tuple[str, str]
 # Parser component
 # ---------------------------------------------------------------------------
 
+_PERF_EVENT_TYPES = {EventType.PERF_RESULT, EventType.PERF_SUMMARY}
+
+
 class MessageParser:
     def __init__(
         self,
         raw_queue: asyncio.Queue,
         parsed_queue: asyncio.Queue,
         store: Store,
+        perf_queue: Optional[asyncio.Queue] = None,
     ) -> None:
         self._raw_q = raw_queue
         self._parsed_q = parsed_queue
+        self._perf_q = perf_queue
         self._store = store
         self._openai = (
             AsyncOpenAI(api_key=config.OPENROUTER_API_KEY, base_url=config.OPENROUTER_BASE_URL)
@@ -321,7 +404,11 @@ class MessageParser:
                 signal = await self._parse(raw)
                 if signal:
                     self._store.save_signal(signal)
-                    await self._parsed_q.put(signal)
+                    if signal.event_type in _PERF_EVENT_TYPES and self._perf_q is not None:
+                        # Route performance results to the learning queue, not the analysis pipeline
+                        await self._perf_q.put(signal)
+                    else:
+                        await self._parsed_q.put(signal)
                     log.info(
                         "Parsed [%s] %s/%s from %s",
                         signal.event_type.value,
@@ -344,6 +431,8 @@ class MessageParser:
         for parser_fn in (
             _parse_whale_buy,
             _parse_entry_signal,
+            _parse_perf_result,   # before gain_update — catches X-multiplier format
+            _parse_perf_summary,  # before summary — catches 🏆 leaderboards
             _parse_gain_update,
             _parse_summary,
         ):

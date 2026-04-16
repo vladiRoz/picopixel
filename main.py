@@ -25,6 +25,7 @@ from components.meta_discovery import MetaDiscovery
 from components.adaptation_monitor import AdaptationMonitor
 from components.evaluation_engine import EvaluationEngine
 from components.feedback_server import FeedbackServer
+from components.performance_learner import PerformanceLearner
 
 log = get_logger(__name__)
 
@@ -60,6 +61,7 @@ async def main() -> None:
     parsed_queue: asyncio.Queue = asyncio.Queue(maxsize=500)
     analysis_queue: asyncio.Queue = asyncio.Queue(maxsize=500)
     broadcast_queue: asyncio.Queue = asyncio.Queue(maxsize=500)
+    perf_queue: asyncio.Queue = asyncio.Queue(maxsize=200)
 
     # Shared Telegram client handle (set by TelegramListener once connected)
     telegram_client_ready: asyncio.Event = asyncio.Event()
@@ -69,7 +71,7 @@ async def main() -> None:
     # Component instances
     # ------------------------------------------------------------------
     listener = TelegramListener(raw_queue, telegram_client_ready, telegram_client_ref)
-    parser = MessageParser(raw_queue, parsed_queue, store)
+    parser = MessageParser(raw_queue, parsed_queue, store, perf_queue=perf_queue)
     meta_engine = MetaAnalysisEngine(parsed_queue, analysis_queue, store)
 
     trend_sources = [
@@ -81,6 +83,7 @@ async def main() -> None:
     meta_discovery = MetaDiscovery(analysis_queue, meta_map, store, broadcast_queue)
     adaptation_monitor = AdaptationMonitor(meta_map, store, config.ADAPTATION_INTERVAL)
     evaluation_engine = EvaluationEngine(broadcast_queue, meta_map, store)
+    performance_learner = PerformanceLearner(perf_queue, meta_map, store)
     feedback_server = FeedbackServer(store, meta_map, meta_discovery)
 
     # ------------------------------------------------------------------
@@ -92,8 +95,9 @@ async def main() -> None:
         asyncio.create_task(trend_collector.run(),    name="trend_collector"),
         asyncio.create_task(meta_discovery.run(),     name="meta_discovery"),
         asyncio.create_task(adaptation_monitor.run(), name="adaptation_monitor"),
-        asyncio.create_task(evaluation_engine.run(),  name="evaluation_engine"),
-        asyncio.create_task(feedback_server.run(),    name="feedback_server"),
+        asyncio.create_task(evaluation_engine.run(),    name="evaluation_engine"),
+        asyncio.create_task(performance_learner.run(), name="performance_learner"),
+        asyncio.create_task(feedback_server.run(),     name="feedback_server"),
     ]
 
     # Telegram listener is a long-running coroutine (not a standard loop task)

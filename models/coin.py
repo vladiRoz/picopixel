@@ -15,6 +15,8 @@ class EventType(str, Enum):
     ENTRY_SIGNAL = "entry_signal"
     GAIN_UPDATE = "gain_update"
     SUMMARY = "summary"
+    PERF_RESULT = "perf_result"    # "📈 SYMBOL is up 30X 📈" — multiplier result
+    PERF_SUMMARY = "perf_summary"  # "🏆 Top Early Trending" leaderboard
     UNKNOWN = "unknown"
 
 
@@ -49,11 +51,12 @@ class CoinSignal:
     bundled_pct: Optional[float] = None
 
     # Gain tracking
-    gain_percentage: Optional[float] = None     # for gain_update events
+    gain_percentage: Optional[float] = None     # for gain_update events (% based)
+    gain_multiplier: Optional[float] = None     # for perf_result events (X based, e.g. 30 for 30X)
     source_entry_mc: Optional[float] = None     # MC at entry signal
     current_mc: Optional[float] = None          # current MC for gain calc
 
-    # Summary entries (for summary events, list of (name, symbol, gain_x))
+    # Summary entries (for summary/perf_summary events, list of dicts)
     summary_entries: list[dict] = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -74,5 +77,8 @@ class CoinSignal:
             "age_minutes": self.age_minutes,
             "security_flags": self.security_flags,
             "gain_percentage": self.gain_percentage,
+            "gain_multiplier": self.gain_multiplier,
+            "source_entry_mc": self.source_entry_mc,
+            "current_mc": self.current_mc,
             "summary_entries": self.summary_entries,
         }
