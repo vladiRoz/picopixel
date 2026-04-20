@@ -77,6 +77,12 @@ def _parse_security(text: str) -> list[str]:
     return flags
 
 
+def _parse_dev_ticker(text: str) -> Optional[str]:
+    """Extract ticker from dev line: 🛠️ Dev: 15 SOL | 0% $PDM"""
+    m = re.search(r"🛠[️\ufe0f]?\s*Dev:.*\$([A-Za-z]\w*)", text)
+    return m.group(1).upper() if m else None
+
+
 def _extract_mc(text: str) -> Optional[float]:
     m = re.search(r"MC:\s*\$?([\d,.KkMm]+)", text)
     return _parse_usd(m.group(1)) if m else None
@@ -109,7 +115,7 @@ def _parse_whale_buy(text: str, channel: str, timestamp) -> Optional[CoinSignal]
 
     m = re.search(r"🔥\s+(.+?)\s+New Whale Buy!", text)
     if m:
-        coin_name = m.group(1).strip()
+        coin_name = _strip_invis(m.group(1).strip())
         event_type = EventType.WHALE_BUY
     else:
         m = re.search(r"Another Whale Aped\s+\$(\w+)!", text)
@@ -127,13 +133,13 @@ def _parse_whale_buy(text: str, channel: str, timestamp) -> Optional[CoinSignal]
     if not coin_name:
         return None
 
-    # Extract symbol from buy line: 💸 2.04 SOL → 0.09% $SYMBOL
+    # Extract symbol: dev line first, then buy line $TICKER, then coin name
     if not symbol:
-        sm = re.search(r"\$([A-Za-z]\w*)\s*$", text, re.MULTILINE)
-        if sm:
-            symbol = sm.group(1)
-        else:
-            symbol = coin_name.upper().replace(" ", "")
+        symbol = (
+            _parse_dev_ticker(text)
+            or (lambda sm: sm.group(1) if sm else None)(re.search(r"\$([A-Za-z]\w*)\s*$", text, re.MULTILINE))
+            or coin_name.upper().replace(" ", "")
+        )
 
     # Wallet and buy amount
     wallet_sol = _parse_sol(text.split("Wallet:")[1]) if "Wallet:" in text else None
@@ -170,9 +176,12 @@ def _parse_entry_signal(text: str, channel: str, timestamp) -> Optional[CoinSign
     if not m:
         return None
     coin_name = _strip_invis(m.group(1).strip())
-    # Only match tickers that start with a letter (avoids $28,786 MC values)
-    symbol_match = re.search(r"\$([A-Za-z]\w*)", text)
-    symbol = symbol_match.group(1) if symbol_match else coin_name.upper().replace(" ", "")
+    # Prefer ticker from dev line; fall back to first letter-starting $TICKER; then coin name
+    symbol = (
+        _parse_dev_ticker(text)
+        or (lambda sm: sm.group(1) if sm else None)(re.search(r"\$([A-Za-z]\w*)", text))
+        or coin_name.upper().replace(" ", "")
+    )
 
     return CoinSignal(
         coin_name=coin_name,
