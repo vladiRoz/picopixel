@@ -114,7 +114,16 @@ class Store:
                     timestamp       TEXT NOT NULL
                 );
 
-                CREATE INDEX IF NOT EXISTS idx_signals_symbol ON coin_signals(symbol);
+                CREATE TABLE IF NOT EXISTS meta_cooccurrence (
+                    meta_a       TEXT NOT NULL,
+                    meta_b       TEXT NOT NULL,
+                    count        INTEGER DEFAULT 0,
+                    win_count    INTEGER DEFAULT 0,
+                    total_gain_x REAL DEFAULT 0.0,
+                    PRIMARY KEY (meta_a, meta_b)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_signals_symbol  ON coin_signals(symbol);
                 CREATE INDEX IF NOT EXISTS idx_outcomes_symbol ON performance_outcomes(coin_symbol);
             """)
             # Migration: add original_timestamp column if it doesn't exist yet
@@ -325,6 +334,81 @@ class Store:
             }
             for r in rows
         ]
+
+    # ------------------------------------------------------------------
+    # Meta co-occurrence
+    # ------------------------------------------------------------------
+
+    def record_meta_cooccurrence(self, meta_ids: list[str]) -> None:
+        """Increment the co-occurrence count for every pair in meta_ids."""
+        if len(meta_ids) < 2:
+            return
+        pairs = [
+            (a, b) if a < b else (b, a)
+            for i, a in enumerate(meta_ids)
+            for b in meta_ids[i + 1:]
+        ]
+        with self._conn() as conn:
+            for a, b in pairs:
+                conn.execute(
+                    """INSERT INTO meta_cooccurrence (meta_a, meta_b, count, win_count, total_gain_x)
+                       VALUES (?, ?, 1, 0, 0.0)
+                       ON CONFLICT(meta_a, meta_b) DO UPDATE SET count = count + 1""",
+                    (a, b),
+                )
+
+    def update_cooccurrence_performance(self, meta_ids: list[str], gain_x: float) -> None:
+        """When a coin's result is known, credit all its meta pairs."""
+        if len(meta_ids) < 2:
+            return
+        is_win = 1 if gain_x >= 5.0 else 0
+        pairs = [
+            (a, b) if a < b else (b, a)
+            for i, a in enumerate(meta_ids)
+            for b in meta_ids[i + 1:]
+        ]
+        with self._conn() as conn:
+            for a, b in pairs:
+                conn.execute(
+                    """INSERT INTO meta_cooccurrence (meta_a, meta_b, count, win_count, total_gain_x)
+                       VALUES (?, ?, 1, ?, ?)
+                       ON CONFLICT(meta_a, meta_b) DO UPDATE SET
+                           win_count    = win_count + ?,
+                           total_gain_x = total_gain_x + ?""",
+                    (a, b, is_win, gain_x, is_win, gain_x),
+                )
+
+    def get_top_cooccurrences(self, meta_id: str, limit: int = 5) -> list[dict]:
+        """Return strongest co-occurring metas for a given meta_id."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                """SELECT
+                       CASE WHEN meta_a = ? THEN meta_b ELSE meta_a END AS partner,
+                       count,
+                       win_count,
+                       CASE WHEN count > 0 THEN ROUND(total_gain_x / count, 1) ELSE 0 END AS avg_gain_x
+                   FROM meta_cooccurrence
+                   WHERE meta_a = ? OR meta_b = ?
+                   ORDER BY win_count DESC, count DESC
+                   LIMIT ?""",
+                (meta_id, meta_id, meta_id, limit),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_all_cooccurrences(self, min_count: int = 2, limit: int = 50) -> list[dict]:
+        """Return all co-occurrence pairs for the web UI."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                """SELECT
+                       meta_a, meta_b, count, win_count,
+                       CASE WHEN count > 0 THEN ROUND(total_gain_x / count, 1) ELSE 0 END AS avg_gain_x
+                   FROM meta_cooccurrence
+                   WHERE count >= ?
+                   ORDER BY win_count DESC, count DESC
+                   LIMIT ?""",
+                (min_count, limit),
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     # ------------------------------------------------------------------
     # Feedback

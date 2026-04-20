@@ -52,6 +52,9 @@ class MetaDiscovery:
             meta_ids.append(meta.id)
             if meta.is_emerging:
                 log.info("Emerging meta detected: %s (coin: %s)", meta_name, symbol)
+        # Record co-occurrence for every pair in this coin's meta set
+        if len(meta_ids) >= 2:
+            self._store.record_meta_cooccurrence(meta_ids)
         return meta_ids
 
     def apply_feedback(self, coin_symbol: str, old_metas: list[str], new_metas: list[str], note: str = "") -> None:

@@ -134,6 +134,10 @@ class PerformanceLearner:
                     new_strength = max(0.1, min(1.0, meta.strength + delta))
                     self._meta_map.update_strength(meta_id, new_strength)
 
+        # Update co-occurrence performance stats for this coin's meta pairs
+        if gain_x > 0 and meta_ids:
+            self._store.update_cooccurrence_performance(meta_ids, gain_x)
+
         # Persist the outcome
         self._store.save_performance_outcome(
             coin_symbol=symbol,

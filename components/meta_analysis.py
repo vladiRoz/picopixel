@@ -31,6 +31,12 @@ Rules:
 - If the coin name clearly maps to a current event (e.g., a politician, a conflict, a tech trend),
   use that as the meta.
 - Be specific: "Trump/Politics" beats "Politics".
+- Coins often COMBINE multiple metas intentionally (e.g., "Unc President" = Culture/GenZ +
+  Politics/Trump). Identify all metas present, not just the most obvious one.
+- Recognise slang, cultural references, and references to previously successful coins as
+  deliberate meta signals.
+- If a "Known strong meta combinations" section is provided, use it to inform whether this
+  coin appears to be riding a proven combo.
 - If genuinely unclear, use "Unknown/Meme".
 - Respond ONLY with valid JSON: {"metas": ["Meta1", "Meta2"], "reasoning": "..."}"""
 
@@ -107,4 +113,16 @@ class MetaAnalysisEngine:
         # Include a short snippet of the raw message for extra context
         snippet = signal.raw_message[:200].replace("\n", " ")
         parts.append(f"Message snippet: {snippet}")
+
+        # Inject top co-occurrence combos as context for the LLM
+        combos = self._store.get_all_cooccurrences(min_count=2, limit=10)
+        if combos:
+            lines = []
+            for c in combos:
+                lines.append(
+                    f"  {c['meta_a']} + {c['meta_b']}: "
+                    f"{c['win_count']} wins / {c['count']} coins, avg {c['avg_gain_x']}X"
+                )
+            parts.append("Known strong meta combinations:\n" + "\n".join(lines))
+
         return "\n".join(parts)
