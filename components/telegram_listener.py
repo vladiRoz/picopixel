@@ -17,13 +17,14 @@ log = get_logger(__name__)
 
 
 class RawMessage:
-    __slots__ = ("text", "channel", "timestamp", "message_id")
+    __slots__ = ("text", "channel", "timestamp", "message_id", "urls")
 
-    def __init__(self, text: str, channel: str, timestamp: datetime, message_id: int):
+    def __init__(self, text: str, channel: str, timestamp: datetime, message_id: int, urls: list[str] | None = None):
         self.text = text
         self.channel = channel
         self.timestamp = timestamp
         self.message_id = message_id
+        self.urls: list[str] = urls or []
 
 
 class TelegramListener:
@@ -89,11 +90,20 @@ class TelegramListener:
             text = event.message.message or ""
             if not text.strip():
                 return
+            # Extract all hyperlink URLs from message entities
+            urls: list[str] = []
+            for ent in (event.message.entities or []):
+                if hasattr(ent, "url") and ent.url:
+                    urls.append(ent.url)
+                elif hasattr(ent, "offset") and hasattr(ent, "length") and not hasattr(ent, "url"):
+                    # Plain URL entity — text slice is the URL
+                    urls.append(text[ent.offset: ent.offset + ent.length])
             raw = RawMessage(
                 text=text,
                 channel=getattr(event.chat, "username", str(event.chat_id)),
                 timestamp=event.message.date,
                 message_id=event.message.id,
+                urls=urls,
             )
             await self._queue.put(raw)
             log.debug(

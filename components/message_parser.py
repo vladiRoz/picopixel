@@ -10,6 +10,7 @@ import json
 import re
 from typing import Optional
 
+import aiohttp
 from openai import AsyncOpenAI
 
 from components.telegram_listener import RawMessage
@@ -353,6 +354,41 @@ def _parse_perf_summary(text: str, channel: str, timestamp) -> Optional[CoinSign
 
 
 # ---------------------------------------------------------------------------
+# GeckoTerminal ticker resolver
+# ---------------------------------------------------------------------------
+
+_GECKO_POOL_RE = re.compile(r"geckoterminal\.com/solana/pools/([A-Za-z0-9]{32,})")
+_GECKO_API = "https://api.geckoterminal.com/api/v2/networks/solana/pools/{}"
+
+
+def _extract_gecko_pool(urls: list[str]) -> Optional[str]:
+    """Return the first Solana pool address found in a list of URLs."""
+    for url in urls:
+        m = _GECKO_POOL_RE.search(url)
+        if m:
+            return m.group(1)
+    return None
+
+
+async def _fetch_gecko_ticker(pool_address: str) -> Optional[str]:
+    """Call GeckoTerminal API and return the base token ticker (e.g. 'DAVE')."""
+    url = _GECKO_API.format(pool_address)
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                if resp.status != 200:
+                    return None
+                data = await resp.json()
+                name = data["data"]["attributes"].get("name", "")
+                # "DAVE / SOL" → "DAVE"
+                ticker = name.split("/")[0].strip()
+                return ticker.upper() if ticker else None
+    except Exception as exc:
+        log.debug("GeckoTerminal lookup failed for %s: %s", pool_address, exc)
+        return None
+
+
+# ---------------------------------------------------------------------------
 # LLM fallback
 # ---------------------------------------------------------------------------
 
@@ -438,6 +474,7 @@ class MessageParser:
         ch = raw.channel
 
         # Try each known pattern
+        signal = None
         for parser_fn in (
             _parse_whale_buy,
             _parse_entry_signal,
@@ -446,15 +483,15 @@ class MessageParser:
             _parse_gain_update,
             _parse_summary,
         ):
-            result = parser_fn(text, ch, ts)
-            if result:
-                return result
+            signal = parser_fn(text, ch, ts)
+            if signal:
+                break
 
         # LLM fallback — only if OpenAI is configured
-        if self._openai:
+        if signal is None and self._openai:
             symbol, name = await _llm_extract_symbol(text, self._openai)
             if symbol:
-                return CoinSignal(
+                signal = CoinSignal(
                     coin_name=name or symbol,
                     symbol=symbol,
                     event_type=EventType.UNKNOWN,
@@ -463,5 +500,20 @@ class MessageParser:
                     timestamp=ts,
                 )
 
-        log.debug("Could not parse message (len=%d): %s…", len(text), text[:60])
-        return None
+        if signal is None:
+            log.debug("Could not parse message (len=%d): %s…", len(text), text[:60])
+            return None
+
+        # Resolve ticker from GeckoTerminal — overrides any text-parsed symbol
+        pool_address = _extract_gecko_pool(raw.urls)
+        if pool_address:
+            gecko_ticker = await _fetch_gecko_ticker(pool_address)
+            if gecko_ticker:
+                if gecko_ticker != signal.symbol:
+                    log.debug(
+                        "Gecko ticker override: %s → %s (pool %s)",
+                        signal.symbol, gecko_ticker, pool_address,
+                    )
+                signal.symbol = gecko_ticker
+
+        return signal
