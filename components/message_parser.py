@@ -129,7 +129,7 @@ def _parse_whale_buy(text: str, channel: str, timestamp) -> Optional[CoinSignal]
 
     # Extract symbol from buy line: 💸 2.04 SOL → 0.09% $SYMBOL
     if not symbol:
-        sm = re.search(r"\$(\w+)\s*$", text, re.MULTILINE)
+        sm = re.search(r"\$([A-Za-z]\w*)\s*$", text, re.MULTILINE)
         if sm:
             symbol = sm.group(1)
         else:
@@ -169,8 +169,9 @@ def _parse_entry_signal(text: str, channel: str, timestamp) -> Optional[CoinSign
     m = re.search(r"🔥\s+(.+?)\s+New Trending", text)
     if not m:
         return None
-    coin_name = m.group(1).strip()
-    symbol_match = re.search(r"\$(\w+)", text)
+    coin_name = _strip_invis(m.group(1).strip())
+    # Only match tickers that start with a letter (avoids $28,786 MC values)
+    symbol_match = re.search(r"\$([A-Za-z]\w*)", text)
     symbol = symbol_match.group(1) if symbol_match else coin_name.upper().replace(" ", "")
 
     return CoinSignal(
