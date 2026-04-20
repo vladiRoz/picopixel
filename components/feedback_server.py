@@ -105,7 +105,17 @@ _INDEX = _BASE.replace("{% block content %}{% endblock %}", """
     {% for m in ev.metas %}<span class="meta-pill">{{ m }}</span>{% endfor %}
   </div>
   <div style="margin-top:8px;font-size:0.85rem;color:#a0aec0">{{ ev.reasoning }}</div>
-  <div style="margin-top:4px;font-size:0.75rem;color:#4a5568">{{ ev.timestamp[:19] }}</div>
+  <div style="margin-top:4px;font-size:0.75rem;color:#4a5568">
+    {{ ev.timestamp[:19] }}
+    {% set ch = ev.get('channel','') %}
+    {% if 'solana' in ch.lower() %}
+      · <span style="color:#68d391">Solana Early</span>
+    {% elif 'whale' in ch.lower() %}
+      · <span style="color:#76e4f7">Whale</span>
+    {% elif ch %}
+      · <span style="color:#a0aec0">{{ ch }}</span>
+    {% endif %}
+  </div>
 </div>
 {% else %}<p style="color:#4a5568">No evaluations yet. Waiting for Telegram signals...</p>
 {% endfor %}
@@ -114,12 +124,24 @@ _INDEX = _BASE.replace("{% block content %}{% endblock %}", """
 _EVALUATIONS = _BASE.replace("{% block content %}{% endblock %}", """
 <h2>All Evaluations</h2>
 <table>
-<thead><tr><th>Coin</th><th>Symbol</th><th>Metas</th><th>Score</th><th>Rec</th><th>Time</th></tr></thead>
+<thead><tr><th>Coin</th><th>Symbol</th><th>Source</th><th>Metas</th><th>Score</th><th>Rec</th><th>Time</th></tr></thead>
 <tbody>
 {% for ev in evaluations %}
 <tr>
   <td>{{ ev.coin_name }}</td>
   <td>${{ ev.coin_symbol }}</td>
+  <td style="white-space:nowrap;font-size:0.8rem">
+    {% set ch = ev.get('channel','') %}
+    {% if 'solana' in ch.lower() %}
+      <span style="color:#68d391">Solana Early</span>
+    {% elif 'whale' in ch.lower() %}
+      <span style="color:#76e4f7">Whale</span>
+    {% elif ch %}
+      <span style="color:#a0aec0">{{ ch }}</span>
+    {% else %}
+      <span style="color:#4a5568">—</span>
+    {% endif %}
+  </td>
   <td>{% for m in ev.metas %}<span class="meta-pill">{{ m }}</span>{% endfor %}</td>
   <td>{{ "%.0f"|format(ev.overall_score * 100) }}%</td>
   <td><span class="badge {{ ev.recommendation }}">{{ ev.recommendation }}</span></td>

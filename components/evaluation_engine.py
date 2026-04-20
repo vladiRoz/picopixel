@@ -111,6 +111,7 @@ class EvaluationEngine:
             overall_score=round(overall, 3),
             recommendation=recommendation,
             reasoning=reasoning,
+            channel=signal.channel,
             timestamp=signal.timestamp,
         )
 

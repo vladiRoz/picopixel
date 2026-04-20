@@ -70,6 +70,7 @@ class CoinEvaluation:
     overall_score: float                        # 0.0 – 1.0
     recommendation: Recommendation
     reasoning: str
+    channel: str = ""
     timestamp: datetime = field(default_factory=datetime.utcnow)
 
     def to_dict(self) -> dict:
@@ -84,5 +85,6 @@ class CoinEvaluation:
             "overall_score": self.overall_score,
             "recommendation": self.recommendation.value,
             "reasoning": self.reasoning,
+            "channel": self.channel,
             "timestamp": self.timestamp.isoformat(),
         }
