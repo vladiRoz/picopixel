@@ -73,6 +73,7 @@ _BASE = """
   <a href="/trends">Trends</a>
   <a href="/feedback">Feedback</a>
   <a href="/api/evaluations">API</a>
+  <a href="/admin" style="color:#fc8181">Admin</a>
 </nav>
 <div class="container">
 {% block content %}{% endblock %}
@@ -273,6 +274,53 @@ _FEEDBACK = _BASE.replace("{% block content %}{% endblock %}", """
 </table>
 """)
 
+_ADMIN = _BASE.replace("{% block content %}{% endblock %}", """
+<h2>Admin</h2>
+<div class="card" style="max-width:480px">
+  <div style="margin-bottom:12px">
+    <strong style="color:#fc8181">Danger Zone</strong>
+    <p style="margin-top:8px;font-size:0.85rem;color:#a0aec0">
+      Deletes all signals, evaluations, metas, feedback, trends, and
+      performance outcomes. The app will restart fresh on next signal.
+    </p>
+  </div>
+  <button onclick="document.getElementById('confirm-modal').style.display='flex'"
+          style="background:#742a2a;color:#fc8181;border:1px solid #fc8181">
+    🗑 Delete All Data
+  </button>
+  {% if message %}
+  <div style="margin-top:12px;padding:10px;background:#276749;border-radius:6px;color:#9ae6b4;font-size:0.85rem">
+    {{ message }}
+  </div>
+  {% endif %}
+</div>
+
+<!-- Confirmation modal -->
+<div id="confirm-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);
+     align-items:center;justify-content:center;z-index:999">
+  <div style="background:#1a1f2e;border:1px solid #742a2a;border-radius:10px;
+              padding:28px;max-width:380px;width:90%;text-align:center">
+    <div style="font-size:2rem;margin-bottom:12px">⚠️</div>
+    <strong style="font-size:1.1rem">Delete everything?</strong>
+    <p style="margin:12px 0;font-size:0.85rem;color:#a0aec0">
+      This will wipe all data from the database.<br>This cannot be undone.
+    </p>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:16px">
+      <button onclick="document.getElementById('confirm-modal').style.display='none'"
+              style="background:#2d3748;color:#e2e8f0;min-width:100px">
+        Cancel
+      </button>
+      <form method="post" action="/admin/reset" style="margin:0">
+        <button type="submit"
+                style="background:#742a2a;color:#fc8181;border:1px solid #fc8181;min-width:100px">
+          Yes, delete all
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+""")
+
 _jinja = Environment(loader=BaseLoader())
 
 
@@ -347,6 +395,17 @@ def create_app(store: Store, meta_map: MetaMap, meta_discovery: MetaDiscovery) -
                 break
         meta_discovery.apply_feedback(symbol, old_metas, new_meta_list, note)
         return RedirectResponse("/feedback", status_code=303)
+
+    @app.get("/admin", response_class=HTMLResponse)
+    async def admin_page(reset: str = ""):
+        message = "All data deleted successfully." if reset == "done" else ""
+        return _render(_ADMIN, message=message)
+
+    @app.post("/admin/reset")
+    async def admin_reset():
+        store.reset_all()
+        meta_map.clear()
+        return RedirectResponse("/admin?reset=done", status_code=303)
 
     @app.get("/api/evaluations")
     async def api_evaluations(limit: int = 50):

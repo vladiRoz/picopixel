@@ -36,6 +36,11 @@ class MetaMap:
             self._metas[meta.id] = meta
         log.info("MetaMap loaded %d metas", len(self._metas))
 
+    def clear(self) -> None:
+        """Drop the in-memory meta registry (called after a DB reset)."""
+        self._metas.clear()
+        log.warning("MetaMap cleared")
+
     # ------------------------------------------------------------------
     # Write operations
     # ------------------------------------------------------------------

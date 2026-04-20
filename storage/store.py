@@ -522,6 +522,20 @@ class Store:
             ).fetchall()
         return [r["source"] for r in rows]
 
+    def reset_all(self) -> None:
+        """Delete all rows from every table. Schema is preserved."""
+        with self._conn() as conn:
+            conn.executescript("""
+                DELETE FROM coin_signals;
+                DELETE FROM metas;
+                DELETE FROM evaluations;
+                DELETE FROM feedback;
+                DELETE FROM trends;
+                DELETE FROM performance_outcomes;
+                DELETE FROM meta_cooccurrence;
+            """)
+        log.warning("Database reset: all data deleted")
+
     def get_trend_stats(self) -> dict:
         """Return summary stats for the trends dashboard."""
         with self._conn() as conn:
