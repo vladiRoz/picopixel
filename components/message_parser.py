@@ -382,7 +382,10 @@ async def _fetch_gecko_ticker(pool_address: str) -> Optional[str]:
                 name = data["data"]["attributes"].get("name", "")
                 # "DAVE / SOL" → "DAVE"
                 ticker = name.split("/")[0].strip()
-                return ticker.upper() if ticker else None
+                # Reject purely numeric names (e.g. "33 / SOL")
+                if ticker and not ticker.isdigit():
+                    return ticker.upper()
+                return None
     except Exception as exc:
         log.debug("GeckoTerminal lookup failed for %s: %s", pool_address, exc)
         return None
