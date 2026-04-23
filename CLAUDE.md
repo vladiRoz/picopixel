@@ -2,6 +2,23 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## What This System Does
+
+Telegram channels post real-time alerts when meme coins on Solana show whale activity or early trending signals. This system listens to those channels, parses each message, and asks: *what real-world narrative (meta) is driving this coin?*
+
+For example:
+- A coin called `404TRUMP` → meta: `Politics/Trump`
+- A coin called `OILBOOM` → meta: `War/Oil Prices`
+- A coin called `UNC PRESIDENT` → metas: `Culture/GenZ` + `Politics/Trump`
+
+Each coin gets scored on meta strength, trend alignment, whale activity, and momentum. The system outputs a recommendation (`STRONG_BUY` / `BUY` / `WATCH` / `AVOID`) visible on the web admin.
+
+Over time the system learns: when a coin's actual performance result arrives (e.g. `📈 DOOM is up 30X`), it compares that against its earlier prediction and adjusts the strength of the metas it assigned — so metas that consistently predict winners grow stronger, and those that don't get penalised.
+
+Runs continuously on a Pixel 5 as part of a PicoClaw agent.
+
+---
+
 ## Running the System
 
 **Full system** (Telegram + LLM + web admin):
